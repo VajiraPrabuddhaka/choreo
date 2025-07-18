@@ -1,29 +1,64 @@
 # Platform Engineer Resources - Classes
 # These resources are typically set up once by the platform team to define templates and policies
 
-# TODO: Move this to the helm installation as default classes
-
 # ServiceClass - Platform Engineer defined template for services
 apiVersion: openchoreo.dev/v1alpha1
 kind: ServiceClass
 metadata:
-  name: default
+  name: go-service-standard
 spec:
   deploymentTemplate:
     replicas: 1
+    strategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 0
     template:
+      metadata:
+        labels:
+          reloader.stakater.com/auto: "true"
       spec:
         containers:
           - name: main
+            env:
+              - name: LOG_TYPE
+                value: "json"
             resources:
               requests:
-                cpu: 100m
-                memory: 128Mi
+                cpu: 200m
+                memory: 256Mi
               limits:
                 cpu: 500m
                 memory: 512Mi
+          - name: sidecar
+            image: busybox:latest
+            command: [ "/bin/sh", "-c" ]
+            args:
+              - |
+                echo "Exposing metrics on port 12001";
+                # Simulate long-running metrics server
+                while true; do nc -lk -p 12001 -e echo "metrics 1"; done
+            ports:
+              - name: metrics
+                containerPort: 12001
+            resources:
+              requests:
+                cpu: 200m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+            readinessProbe:
+              tcpSocket:
+                port: metrics
+              initialDelaySeconds: 5
+              periodSeconds: 10
   serviceTemplate:
-    type: ClusterIP
+    ports:
+      - name: metrics-http
+        port: 12001
+        targetPort: 12001
 
 ---
 
@@ -31,5 +66,39 @@ spec:
 apiVersion: openchoreo.dev/v1alpha1
 kind: APIClass
 metadata:
-  name: default
+  name: greeter-service-rest-api-standard
 spec:
+  restPolicy:
+    defaults:
+      rateLimit:
+        requests: 5
+        window: "1s"
+      authentication:
+        type: jwt
+        jwt:
+          jwks: "https://raw.githubusercontent.com/envoyproxy/gateway/refs/heads/main/examples/kubernetes/jwt/jwks.json"
+          issuer: "https://openchoreo.io"
+          audience: ["openchoreo:reading-list:api"]
+        oauth2:
+          scopes: ["greet"]
+          tokenUrl: "https://openchoreo.io/oauth/token"
+      cors:
+        allowOrigins: ["https://example.com", "https://app.example.com"]
+        allowMethods: ["GET", "POST", "PUT", "DELETE"]
+        allowHeaders: ["Content-Type", "Authorization"]
+        exposeHeaders: ["X-Request-ID"]
+        maxAge: 86400
+      circuitBreaker:
+        enabled: true
+        maxConnections: 2
+    public:
+      rateLimit:
+        requests: 5
+        window: "1m"
+      security:
+        requireTLS: true
+        minTLSVersion: "1.3"
+    organization:
+      rateLimit:
+        requests: 5000
+        window: "1h"
