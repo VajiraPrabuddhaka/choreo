@@ -23,14 +23,12 @@ Pending
 
 ## Summary
 
-This proposal introduces a standardized deployment and promotion mechanism for OpenChoreo that works seamlessly with both UI/CLI and GitOps workflows. The design uses **Release** and **ReleasePin** CRs to provide an immutable, auditable way to promote component definitions across environments while maintaining environment-specific configuration separation.
+This proposal introduces a standardized deployment and promotion mechanism for OpenChoreo that works seamlessly with both UI/CLI and GitOps workflows. The design uses **ComponentRelease** and **ReleaseBinding** CRs to provide an immutable, auditable way to promote component definitions across environments while maintaining environment-specific configuration separation.
 
-The Release CR supports **two flexible approaches** for storing ComponentTypeDefinitions, Addons, and Components:
-- **Git references** (lightweight Release, slower reconciliation): Release (Comparatively smaller to embedded content). Recommended for GitOps workflows.
+**ComponentRelease** is an immutable snapshot that captures the exact state of a component at a specific point in time, serving as a "lockfile" for deployments. It ensures the same configuration can be reliably promoted across environments. ComponentReleases support two storage modes: **git references** (lightweight, ~2-5 KB, ideal for GitOps workflows with clean diffs) or **embedded content** (self-contained, ~50-200 KB, ideal for UI/CLI workflows with faster reconciliation). The Workload is always embedded as it contains build output. Once created, a ComponentRelease cannot be modified, providing a stable, auditable artifact for promotion workflows.
 
-- **Embedded content** (larger Release, faster reconciliation): Release (Comparatively larger to git references). For the UI and CLI paths, this has been used for deployments and promotions.
+**ReleaseBinding** connects a ComponentRelease to a specific environment, enabling the same immutable ComponentRelease to be deployed across multiple environments with environment-specific configurations via EnvSettings.
 
-Users can choose the approach that best fits their workflow, or even mix both within the same Release, providing maximum flexibility while addressing etcd storage and performance concerns through garbage collection, git references, and planned compression support.
 
 ## Motivation
 
@@ -48,17 +46,17 @@ With the introduction of ComponentTypeDefinitions, Addons, and Workloads ([Propo
 
 An initial approach where ComponentEnvSnapshot was **auto-generated on source changes** (ComponentTypeDefinition, Component, Addon, or Workload updates) revealed three critical issues:
 
-1. **GitOps Circular Dependencies**: Auto-generating snapshots on source changes creates circular update loops. When addons or ComponentTypeDefinitions update, controllers auto-generate new snapshots and commit them to git, which triggers reconciliation, which may rollback snapshots before dependent resources sync, causing repeated commits and sync conflicts (as shown in the image below). **Resolution**: In this proposal, ComponentEnvSnapshot is generated on-demand by the ReleasePin controller during reconciliation, not automatically on source changes.
+1. **GitOps Circular Dependencies**: Auto-generating snapshots on source changes creates circular update loops. When addons or ComponentTypeDefinitions update, controllers auto-generate new snapshots and commit them to git, which triggers reconciliation, which may rollback snapshots before dependent resources sync, causing repeated commits and sync conflicts (as shown in the image below). **Resolution**: In this proposal, ComponentEnvSnapshot is generated on-demand by the ReleaseBinding controller during reconciliation, not automatically on source changes.
 
 ![Circular Dependencies](0554-assets/circular-dependency.png)
 
 In the image above, when the Addon and ComponentEnvSnapshot are updated in the source code, if the AddOn reconciliation is triggered before the ComponentEnvSnapshot reconciliation, the ComponentEnvSnapshot will be rolled back to the previous version, causing a circular dependency.
 
-2. **etcd Storage Bloat**: Large snapshot objects embedding full copies of CTD, Addon, Workload, and EnvSettings accumulate during frequent promotions across multiple environments, causing storage pressure. **Note**: This issue can still occur when using embedded content in the Release CR, but is mitigated through:
-   - **Garbage collection** of unused/old Releases (configurable retention policies)
+2. **etcd Storage Bloat**: Large snapshot objects embedding full copies of CTD, Addon, Workload, and EnvSettings accumulate during frequent promotions across multiple environments, causing storage pressure. **Note**: This issue can still occur when using embedded content in the ComponentRelease CR, but is mitigated through:
+   - **Garbage collection** of unused/old ComponentReleases (configurable retention policies)
    - **Git references as an alternative** for users who prefer lightweight objects (GitOps workflows)
 
-3. **Poor Developer Experience**: Exposing ComponentEnvSnapshot as the primary user-facing resource for promotions reveals internal implementation details rather than expressing the business intent of "deploy this release to this environment." **Resolution**: Release and ReleasePin become the user-facing abstractions with intuitive commands:
+3. **Poor Developer Experience**: Exposing ComponentEnvSnapshot as the primary user-facing resource for promotions reveals internal implementation details rather than expressing the business intent of "deploy this release to this environment." **Resolution**: ComponentRelease and ReleaseBinding become the user-facing abstractions with intuitive commands:
    - **UI**: "Deploy" button or "Promote" button with environment selection
    - **CLI**: `choreo deploy --environment <environment>` or `choreo promote --from <environment> --to <environment>`
    - ComponentEnvSnapshot remains an internal implementation detail
@@ -87,22 +85,22 @@ In the image above, when the Addon and ComponentEnvSnapshot are updated in the s
 
 The design introduces two primary user-facing CRDs and uses an existing user-facing resource:
 
-1. **Release** (new, user-facing): An immutable, lightweight promotable unit that pins versions of ComponentTypeDefinitions, Addons, Components, and Workloads (similar to a lockfile)
-2. **ReleasePin** (new, user-facing): A per-environment resource that references which Release is deployed to that environment
+1. **ComponentRelease** (new, user-facing): An immutable, lightweight promotable unit that pins versions of ComponentTypeDefinitions, Addons, Components, and Workloads (similar to a lockfile)
+2. **ReleaseBinding** (new, user-facing): A per-environment resource that references which ComponentRelease is deployed to that environment
 3. **EnvSettings** (existing, user-facing): An optional resource that defines environment-specific configuration (e.g., replica counts, resource limits)
 
-This separation allows the same Release to be deployed to multiple environments with different EnvSettings, producing environment-specific manifests at reconciliation time.
+This separation allows the same ComponentRelease to be deployed to multiple environments with different EnvSettings, producing environment-specific manifests at reconciliation time.
 
 ![High Level Architecture](0554-assets/high-level-architecture.png)
 
 High Level Architecture of the deployment and promotion workflow.
 
-- UI/CLI: When developer triggers the deployment, the OpenChoreo API server will create the Release and ReleasePin for the first environment using Component, ComponentTypeDefinition, Addons with embedded content. When developer triggers the promotion, the OpenChoreo API server will update the target environment's ReleasePin to previous environment's Release. The ReleasePin controller will reconcile the ReleasePin and it generates final K8s yamls.
-- GitOps: When developer do any update to the ReleasePin or Release/EnvSettings(that the ReleasePin refers) the ReleasePin controller will reconcile the ReleasePin and create final K8s yamls.
+- UI/CLI: When developer triggers the deployment, the OpenChoreo API server will create the ComponentRelease and ReleaseBinding for the first environment using Component, ComponentTypeDefinition, Addons with embedded content. When developer triggers the promotion, the OpenChoreo API server will update the target environment's ReleaseBinding to previous environment's ComponentRelease. The ReleaseBinding controller will reconcile the ReleaseBinding and it generates final K8s yamls.
+- GitOps: When developer do any update to the ReleaseBinding or ComponentRelease/EnvSettings(that the ReleaseBinding refers) the ReleaseBinding controller will reconcile the ReleaseBinding and create final K8s yamls.
 
-### 1. Release CR
+### 1. ComponentRelease CR
 
-A **Release** is an immutable snapshot of promotable content. It supports **two approaches** for storing ComponentTypeDefinition, Addon, Workload and Component: **git references** (from gitops repo) or **embedded content** (self-contained). The Workload is always embedded as it contains build output.
+A **ComponentRelease** is an immutable snapshot of promotable content. It supports **two approaches** for storing ComponentTypeDefinition, Addon, Workload and Component: **git references** (from gitops repo) or **embedded content** (self-contained). The Workload is always embedded as it contains build output.
 
 **Key characteristics:**
 - Immutable once created
@@ -112,11 +110,11 @@ A **Release** is an immutable snapshot of promotable content. It supports **two 
 
 #### Approach 1: Git References
 
-Stores references to content using git commit SHAs. Keeps Release objects small (~2-5 KB).
+Stores references to content using git commit SHAs. Keeps ComponentRelease objects small (~2-5 KB).
 
 ```yaml
 apiVersion: openchoreo.dev/v1alpha1
-kind: Release
+kind: ComponentRelease
 metadata:
   name: checkout-service-20251102-1
   labels:
@@ -177,11 +175,11 @@ spec:
 
 #### Approach 2: Embedded Content
 
-Embeds full definitions directly in the Release. Self-contained but larger (~50-200 KB). For CLI and UI Releases will be generated by the Open Choreo API server on deployment or promotion.
+Embeds full definitions directly in the ComponentRelease. Self-contained but larger (~50-200 KB). For CLI and UI ComponentReleases will be generated by the Open Choreo API server on deployment or promotion.
 
 ```yaml
 apiVersion: openchoreo.dev/v1alpha1
-kind: Release
+kind: ComponentRelease
 metadata:
   name: checkout-service-20251102-1
   labels:
@@ -255,7 +253,7 @@ spec:
 
 **Use Git References when:**
 - Working with GitOps workflows (ArgoCD, Flux, etc.)
-- You want clean, readable git diffs for promotion reviews (Release is only ~2-5 KB)
+- You want clean, readable git diffs for promotion reviews (ComponentRelease is only ~2-5 KB)
 - You want traceability to exact git commits
 - ComponentTypeDefinitions/Addons are reused across multiple components
 - Reconciliation speed is less critical (async git-triggered deployments)
@@ -263,17 +261,17 @@ spec:
 **Use Embedded Content when:**
 - Working with UI/CLI workflows (no git integration)
 - You need **faster reconciliation**
-- You want self-contained Releases (no external git dependencies)
+- You want self-contained ComponentReleases (no external git dependencies)
 - Definitions are dynamically generated by OpenChoreo API server
 
 
-#### 1.1 Release Controller
+#### 1.1 ComponentRelease Controller
 
-The following flow chart describes how the Release controller works.
+The following flow chart describes how the ComponentRelease controller works.
 
 ```mermaid
 flowchart TD
-    Start([Create/Update Release]) --> CheckGit{If Git<br/>commit<br/>referred<br/>release}
+    Start([Create/Update ComponentRelease]) --> CheckGit{If Git<br/>commit<br/>referred<br/>release}
 
     CheckGit -->|yes| FetchGit[Fetch content from GitHub<br/>CTD, addon, workload]
     CheckGit -->|No| UpdateStatus[Update Status as True]
@@ -284,29 +282,29 @@ flowchart TD
     UpdateStatus --> End([Exit<br/>reconcile<br/>loop])
 ```
 
-**Release Controller Reconciliation Summary:**
+**ComponentRelease Controller Reconciliation Summary:**
 
-- **Git-referenced Releases**: When a Release uses git references (gitRef), the controller fetches the actual content (ComponentTypeDefinition, Addons, Workload) from the specified GitHub repository and copies it to the Release's status field for caching and observability
-- **Embedded content Releases**: When a Release has embedded content, the controller directly marks the status as ready without any git operations
-- **Status management**: After processing (either fetching from git or skipping for embedded content), the controller updates the Release status to True, indicating the Release is ready to be used by ReleasePin controllers
-- **Reconciliation efficiency**: This design allows git-referenced Releases to cache resolved content in status, reducing repeated git fetches during subsequent reconciliations
+- **Git-referenced ComponentReleases**: When a ComponentRelease uses git references (gitRef), the controller fetches the actual content (ComponentTypeDefinition, Addons, Workload) from the specified GitHub repository and copies it to the ComponentRelease's status field for caching and observability
+- **Embedded content ComponentReleases**: When a ComponentRelease has embedded content, the controller directly marks the status as ready without any git operations
+- **Status management**: After processing (either fetching from git or skipping for embedded content), the controller updates the ComponentRelease status to True, indicating the ComponentRelease is ready to be used by ReleaseBinding controllers
+- **Reconciliation efficiency**: This design allows git-referenced ComponentReleases to cache resolved content in status, reducing repeated git fetches during subsequent reconciliations
 
 
-### 2. ReleasePin CR
+### 2. ReleaseBinding CR
 
-A **ReleasePin** represents which Release is currently deployed to a specific environment. It's a per-environment resource that creates the binding between a Release and an Environment.
+A **ReleaseBinding** represents which ComponentRelease is currently deployed to a specific environment. It's a per-environment resource that creates the binding between a ComponentRelease and an Environment.
 
 **Key characteristics:**
-- One ReleasePin per component per environment
+- One ReleaseBinding per component per environment
 - Mutable (updated during promotions)
-- References a Release by name
+- References a ComponentRelease by name
 - Lightweight (just a reference + environment identifier)
 
 **Structure:**
 
 ```yaml
 apiVersion: openchoreo.dev/v1alpha1
-kind: ReleasePin
+kind: ReleaseBinding
 metadata:
   name: checkout-service-production
   labels:
@@ -315,7 +313,7 @@ metadata:
 spec:
   component: checkout-service
   environment: production
-  releaseName: checkout-service-20251102-1  # Points to a Release
+  releaseName: checkout-service-20251102-1  # Points to a ComponentRelease
 
 status:
   # Status fields managed by controller
@@ -326,16 +324,16 @@ status:
       status: "True"
       lastTransitionTime: "2025-10-27T10:00:00Z"
       reason: ReconcileSuccess
-      message: "Release successfully applied"
+      message: "ComponentRelease successfully applied"
 ```
 
-#### 2.1 ReleasePin Controller
+#### 2.1 ReleaseBinding Controller
 
-- ReleasePin controller is responsible for generating the rendered Kubernetes manifests and applying them to the DataPlane.
-- ReleasePin controller watches on the following resources:
-    - ReleasePin
+- ReleaseBinding controller is responsible for generating the rendered Kubernetes manifests and applying them to the DataPlane.
+- ReleaseBinding controller watches on the following resources:
+    - ReleaseBinding
     - EnvSettings
-    - Release (Corresponding to the ReleasePin's releaseName)
+    - ComponentRelease (Corresponding to the ReleaseBinding's releaseName)
 
 ### 3. Deployment Flow
 
@@ -344,12 +342,12 @@ status:
 When a Component is created or updated, the deployment flow works as follows:
 
 1. Developer create component and trigger the deployment to the first environment.
-2. OpenChoreo API Server will create the Release and ReleasePin for the first environment referencing the Component, ComponentTypeDefinition, Addons, and Workload.
+2. OpenChoreo API Server will create the ComponentRelease and ReleaseBinding for the first environment referencing the Component, ComponentTypeDefinition, Addons, and Workload.
 
 ### 4. Promotion Flow
 
-Promotion is the process of deploying an existing Release to a subsequent environment. For the both UI/CLI and GitOps workflows, the promotion flow is the same. 
-The promotion is all about updating the ReleasePin to point to the new Release. 
+Promotion is the process of deploying an existing ComponentRelease to a subsequent environment. For the both UI/CLI and GitOps workflows, the promotion flow is the same. 
+The promotion is all about updating the ReleaseBinding to point to the new ComponentRelease. 
 
 The following sections describe the UI/CLI and GitOps flows in detail.
 
@@ -360,21 +358,21 @@ The following sections describe the UI/CLI and GitOps flows in detail.
    - **CLI**: Runs CLI command to promote the component from source to target environment.
 
 2. OpenChoreo API server:
-   - Identifies the ReleasePin in the source environment.
-   - Reads the `releaseRef` from that ReleasePin
-   - Creates or updates the ReleasePin in the target environment (e.g., `checkout-service-staging`)
-   - Sets the same `releaseRef` in the target ReleasePin
+   - Identifies the ReleaseBinding in the source environment.
+   - Reads the `releaseRef` from that ReleaseBinding
+   - Creates or updates the ReleaseBinding in the target environment (e.g., `checkout-service-staging`)
+   - Sets the same `releaseRef` in the target ReleaseBinding
 
-3. ReleasePin controller:
-   - Reconciles the ReleasePin to generate the rendered Kubernetes manifests
+3. ReleaseBinding controller:
+   - Reconciles the ReleaseBinding to generate the rendered Kubernetes manifests
    - Applies the manifests to the DataPlane
 
 #### GitOps Promotion
 
-1. User creates a Git PR to update the ReleasePin:
+1. User creates a Git PR to update the ReleaseBinding:
    ```diff
    apiVersion: openchoreo.dev/v1alpha1
-   kind: ReleasePin
+   kind: ReleaseBinding
    metadata:
      name: checkout-service-staging
    spec:
@@ -388,7 +386,7 @@ The following sections describe the UI/CLI and GitOps flows in detail.
 
 3. GitOps controller (ArgoCD/Flux) syncs the change
 
-4. ReleasePin controller reconciles the updated ReleasePin (same as UI/CLI flow above) and it will deploy the new Release to the target environment.
+4. ReleaseBinding controller reconciles the updated ReleaseBinding (same as UI/CLI flow above) and it will deploy the new ComponentRelease to the target environment.
 
 **Benefits:**
 - Clean, human-readable Git diffs
@@ -398,7 +396,7 @@ The following sections describe the UI/CLI and GitOps flows in detail.
 
 ### 5. Environment-Specific Configuration
 
-EnvSettings resources remain per-environment and are applied at reconciliation time, not stored in the Release.
+EnvSettings resources remain per-environment and are applied at reconciliation time, not stored in the ComponentRelease.
 
 **Example EnvSettings:**
 
@@ -432,8 +430,8 @@ spec:
         storageClass: premium
 ```
 
-**When reconciling a ReleasePin**, the controller:
-1. Fetches the Release.
+**When reconciling a ReleaseBinding**, the controller:
+1. Fetches the ComponentRelease.
 2. Get ComponentTypeDefinition, Component, Addons, and Workload from the status (in case of git references) or embedded content.
 3. Fetches EnvSettings for that environment.
 4. Merges Component parameters with EnvSettings overrides
@@ -441,66 +439,66 @@ spec:
 6. Applies Addon patches (with addon-specific EnvSettings overrides)
 7. Creates final Kubernetes resources
 
-This allows the same Release to produce different Kubernetes manifests in different environments (e.g., 1 replica in dev, 10 in production) without duplicating the core component definition.
+This allows the same ComponentRelease to produce different Kubernetes manifests in different environments (e.g., 1 replica in dev, 10 in production) without duplicating the core component definition.
 
 
 ### 7. Garbage Collection
 
-To prevent unbounded growth of Release objects, OpenChoreo supports configurable retention policies.
+To prevent unbounded growth of ComponentRelease objects, OpenChoreo supports configurable retention policies.
 
 #### UI/CLI Mode
 
-**Release Garbage Collection:**
+**ComponentRelease Garbage Collection:**
 - **Default policy**: Retain last N releases (where N = number of environments)
 - **Example**: For 3 environments (dev, staging, prod) = retain last 3 releases
-- **Implementation**: OpenChoreo API Server automatically deletes old Releases when new ones are created, keeping only the most recent N
-- **Safeguard**: Never delete a Release that is currently referenced by any ReleasePin
+- **Implementation**: OpenChoreo API Server automatically deletes old ComponentReleases when new ones are created, keeping only the most recent N
+- **Safeguard**: Never delete a ComponentRelease that is currently referenced by any ReleaseBinding
 
 #### GitOps Mode
 
-**Release Garbage Collection:**
-- **User-managed**: Users are responsible for cleaning up old Release definitions from git
+**ComponentRelease Garbage Collection:**
+- **User-managed**: Users are responsible for cleaning up old ComponentRelease definitions from git
 - **Optional tooling**: OpenChoreo can provide a CLI command to list unused releases for manual cleanup
 - **Recommendation**: Keep releases for a retention period (e.g., 30 days) even if no longer pinned, for rollback purposes
 
 ## etcd Storage Considerations
 
-The `Releae` might contain large embedded content (ComponentTypeDefinitions, Addons, Workloads, Components). This can lead to increased etcd storage usage.
+The `ComponentRelease` might contain large embedded content (ComponentTypeDefinitions, Addons, Workloads, Components). This can lead to increased etcd storage usage.
 The following are some potential solutions that can be implemented to reduce etcd storage usage.
 
 1. **Garbage Collection** (Primary Strategy):
-   - Automatically delete old/unused Releases based on retention policies
+   - Automatically delete old/unused ComponentReleases based on retention policies
    - UI/CLI mode: Keep last N releases (e.g., N = number of environments + buffer)
-   - Never delete Releases currently referenced by any ReleasePin
+   - Never delete ComponentReleases currently referenced by any ReleaseBinding
    - See [Garbage Collection](#7-garbage-collection) section for details
 
 2. **Compression** (Planned Future Enhancement):
-   - Apply compression (e.g., zstd) to embedded content within Release objects
-   - Could reduce embedded Release size by 60-80% (from ~50-200 KB to ~10-40 KB)
+   - Apply compression (e.g., zstd) to embedded content within ComponentRelease objects
+   - Could reduce embedded ComponentRelease size by 60-80% (from ~50-200 KB to ~10-40 KB)
    - Transparent to users - compression/decompression handled by the controller
    - Trade-off: Slightly increased CPU usage during reconciliation
 
 ## Future Enhancements
 
-### 1. Content Compression for Embedded Releases
+### 1. Content Compression for Embedded ComponentReleases
 
 Add transparent compression to reduce etcd storage footprint for embedded content:
 
 **Implementation approach:**
-- Add a `compressed: true` annotation to Release objects
+- Add a `compressed: true` annotation to ComponentRelease objects
 - Controller compresses embedded content using gzip before storing in etcd
 - Controller automatically decompresses during reconciliation
 - Expected compression ratios: 60-80% reduction (YAML compresses well)
 
 **Benefits:**
-- Reduces embedded Release size from ~50-200 KB to ~10-40 KB
+- Reduces embedded ComponentRelease size from ~50-200 KB to ~10-40 KB
 - Makes embedded content more competitive with git references in terms of storage
 - Reduces etcd backup sizes and network transfer during replication
 
 **Example:**
 ```yaml
 apiVersion: openchoreo.dev/v1alpha1
-kind: Release
+kind: ComponentRelease
 metadata:
   name: checkout-service-v1.2.3
   annotations:
@@ -518,20 +516,20 @@ spec:
 - Implement compression only when embedded content exceeds a threshold (e.g., 20 KB)
 - Provide metrics on compression ratios achieved
 
-### 2. Database-Backed Release History in ControlPlane API Server
+### 2. Database-Backed ComponentRelease History in ControlPlane API Server
 
 Introduce a database layer in the ControlPlane API Server to offload release history from etcd, enabling long-term storage of deployment records, improved rollback capabilities, and analytics while reducing etcd storage pressure.
 
 **Overview:**
 
-This enhancement proposes adding a relational database (PostgreSQL/MySQL) to store historical Releases, deployment records (ReleasePins), and promotion events. While etcd remains the source of truth for **current active state**, the database becomes the archive for historical data. This allows:
+This enhancement proposes adding a relational database (PostgreSQL/MySQL) to store historical ComponentReleases, deployment records (ReleaseBindings), and promotion events. While etcd remains the source of truth for **current active state**, the database becomes the archive for historical data. This allows:
 
 - **Aggressive etcd garbage collection**: Keep only recent releases (last 3-5) in etcd
 - **Complete audit trail**: All releases, deployments, and promotions stored indefinitely
 - **Rich rollback experience**: Query deployment history and rollback to any previous version
 - **Analytics and reporting**: Deployment frequency, promotion velocity, compliance reports
 
-The database operates asynchronously—Release creation is not blocked by database writes, ensuring system reliability even if the database is temporarily unavailable.
+The database operates asynchronously—ComponentRelease creation is not blocked by database writes, ensuring system reliability even if the database is temporarily unavailable.
 
 
 ## References
