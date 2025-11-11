@@ -67,7 +67,7 @@ func (r *Reconciler) listComponentsForComponentType(ctx context.Context, obj cli
 	ctd := obj.(*openchoreov1alpha1.ComponentTypeDefinition)
 
 	// Find all components using this ComponentTypeDefinition
-	// ComponentType format: {workloadType}/{ctdName}
+	// CompType format: {workloadType}/{ctdName}
 	componentType := fmt.Sprintf("%s/%s", ctd.Spec.WorkloadType, ctd.Name)
 
 	var components openchoreov1alpha1.ComponentList

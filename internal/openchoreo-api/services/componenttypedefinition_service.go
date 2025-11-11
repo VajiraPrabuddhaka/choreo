@@ -19,13 +19,13 @@ import (
 	"github.com/openchoreo/openchoreo/internal/schema"
 )
 
-// ComponentTypeService handles ComponentType-related business logic
+// ComponentTypeService handles CompType-related business logic
 type ComponentTypeService struct {
 	k8sClient client.Client
 	logger    *slog.Logger
 }
 
-// NewComponentTypeService creates a new ComponentType service
+// NewComponentTypeService creates a new CompType service
 func NewComponentTypeService(k8sClient client.Client, logger *slog.Logger) *ComponentTypeService {
 	return &ComponentTypeService{
 		k8sClient: k8sClient,
@@ -56,9 +56,9 @@ func (s *ComponentTypeService) ListComponentTypes(ctx context.Context, orgName s
 	return ctds, nil
 }
 
-// GetComponentType retrieves a specific ComponentType
+// GetComponentType retrieves a specific CompType
 func (s *ComponentTypeService) GetComponentType(ctx context.Context, orgName, ctdName string) (*models.ComponentTypeResponse, error) {
-	s.logger.Debug("Getting ComponentType", "org", orgName, "name", ctdName)
+	s.logger.Debug("Getting CompType", "org", orgName, "name", ctdName)
 
 	ctd := &openchoreov1alpha1.ComponentTypeDefinition{}
 	key := client.ObjectKey{
@@ -68,19 +68,19 @@ func (s *ComponentTypeService) GetComponentType(ctx context.Context, orgName, ct
 
 	if err := s.k8sClient.Get(ctx, key, ctd); err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			s.logger.Warn("ComponentType not found", "org", orgName, "name", ctdName)
+			s.logger.Warn("CompType not found", "org", orgName, "name", ctdName)
 			return nil, ErrComponentTypeNotFound
 		}
-		s.logger.Error("Failed to get ComponentType", "error", err)
-		return nil, fmt.Errorf("failed to get ComponentType: %w", err)
+		s.logger.Error("Failed to get CompType", "error", err)
+		return nil, fmt.Errorf("failed to get CompType: %w", err)
 	}
 
 	return s.toComponentTypeResponse(ctd), nil
 }
 
-// GetComponentTypeSchema retrieves the JSON schema for a ComponentType
+// GetComponentTypeSchema retrieves the JSON schema for a CompType
 func (s *ComponentTypeService) GetComponentTypeSchema(ctx context.Context, orgName, ctdName string) (*extv1.JSONSchemaProps, error) {
-	s.logger.Debug("Getting ComponentType schema", "org", orgName, "name", ctdName)
+	s.logger.Debug("Getting CompType schema", "org", orgName, "name", ctdName)
 
 	// First get the CTD
 	ctd := &openchoreov1alpha1.ComponentTypeDefinition{}
@@ -91,11 +91,11 @@ func (s *ComponentTypeService) GetComponentTypeSchema(ctx context.Context, orgNa
 
 	if err := s.k8sClient.Get(ctx, key, ctd); err != nil {
 		if client.IgnoreNotFound(err) == nil {
-			s.logger.Warn("ComponentType not found", "org", orgName, "name", ctdName)
+			s.logger.Warn("CompType not found", "org", orgName, "name", ctdName)
 			return nil, ErrComponentTypeNotFound
 		}
-		s.logger.Error("Failed to get ComponentType", "error", err)
-		return nil, fmt.Errorf("failed to get ComponentType: %w", err)
+		s.logger.Error("Failed to get CompType", "error", err)
+		return nil, fmt.Errorf("failed to get CompType: %w", err)
 	}
 
 	// Extract types from RawExtension
@@ -126,11 +126,11 @@ func (s *ComponentTypeService) GetComponentTypeSchema(ctx context.Context, orgNa
 		return nil, fmt.Errorf("failed to convert to JSON schema: %w", err)
 	}
 
-	s.logger.Debug("Retrieved ComponentType schema successfully", "org", orgName, "name", ctdName)
+	s.logger.Debug("Retrieved CompType schema successfully", "org", orgName, "name", ctdName)
 	return jsonSchema, nil
 }
 
-// toComponentTypeResponse converts a ComponentType CR to a ComponentTypeResponse
+// toComponentTypeResponse converts a CompType CR to a ComponentTypeResponse
 func (s *ComponentTypeService) toComponentTypeResponse(ctd *openchoreov1alpha1.ComponentTypeDefinition) *models.ComponentTypeResponse {
 	// Extract display name and description from annotations
 	displayName := ctd.Annotations[controller.AnnotationKeyDisplayName]
