@@ -42,8 +42,8 @@ var _ = Describe("ReleaseBinding Controller", func() {
 							ProjectName:   "test-project",
 							ComponentName: "test-component",
 						},
-						Environment: "test-env",
-						ReleaseName: "test-release",
+						Environment:      "test-env",
+						ComponentRelease: "test-release",
 					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())

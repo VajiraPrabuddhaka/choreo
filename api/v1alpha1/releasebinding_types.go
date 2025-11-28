@@ -37,10 +37,10 @@ type ReleaseBindingSpec struct {
 	// +kubebuilder:validation:Required
 	Environment string `json:"environment"`
 
-	// ReleaseName is the name of the ComponentRelease to bind
+	// ComponentRelease is the name of the ComponentRelease to bind
 	// When ComponentSpec.AutoDeploy is enabled, this field will be handled by the controller
 	// +optional
-	ReleaseName string `json:"releaseName,omitempty"`
+	ComponentRelease string `json:"componentRelease,omitempty"`
 
 	// ComponentTypeEnvOverrides for ComponentType envOverrides parameters
 	// These values override the defaults defined in the Component for this specific environment

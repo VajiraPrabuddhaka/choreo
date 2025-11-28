@@ -32,18 +32,18 @@ func (r *Reconciler) setupSecretReferencesIndex(ctx context.Context, mgr ctrl.Ma
 			logger := log.FromContext(ctx)
 
 			// Fetch ComponentRelease to get the base workload
-			if releaseBinding.Spec.ReleaseName == "" {
+			if releaseBinding.Spec.ComponentRelease == "" {
 				return []string{}
 			}
 
 			componentRelease := &openchoreov1alpha1.ComponentRelease{}
 			if err := r.Get(ctx, types.NamespacedName{
-				Name:      releaseBinding.Spec.ReleaseName,
+				Name:      releaseBinding.Spec.ComponentRelease,
 				Namespace: releaseBinding.Namespace,
 			}, componentRelease); err != nil {
 				logger.Info("Failed to get ComponentRelease for index",
 					"releaseBinding", releaseBinding.Name,
-					"componentRelease", releaseBinding.Spec.ReleaseName,
+					"componentRelease", releaseBinding.Spec.ComponentRelease,
 					"error", err)
 				return []string{}
 			}

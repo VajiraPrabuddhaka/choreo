@@ -530,7 +530,7 @@ func (r *Reconciler) ensureComponentRelease(
 func (r *Reconciler) ensureReleaseBinding(
 	ctx context.Context,
 	comp *openchoreov1alpha1.Component,
-	releaseName string,
+	componentRelease string,
 	firstEnv string,
 	bindingName string,
 ) error {
@@ -556,8 +556,8 @@ func (r *Reconciler) ensureReleaseBinding(
 					ProjectName:   comp.Spec.Owner.ProjectName,
 					ComponentName: comp.Name,
 				},
-				ReleaseName: releaseName,
-				Environment: firstEnv,
+				ComponentRelease: componentRelease,
+				Environment:      firstEnv,
 				// No overrides for initial auto-deploy
 			},
 		}
@@ -566,7 +566,7 @@ func (r *Reconciler) ensureReleaseBinding(
 			return fmt.Errorf("failed to create ReleaseBinding: %w", err)
 		}
 
-		logger.Info("Created ReleaseBinding", "binding", bindingName, "release", releaseName,
+		logger.Info("Created ReleaseBinding", "binding", bindingName, "release", componentRelease,
 			"environment", firstEnv)
 		return nil
 	}
@@ -578,8 +578,8 @@ func (r *Reconciler) ensureReleaseBinding(
 	releaseBinding := releaseBindingList.Items[0]
 
 	// ReleaseBinding exists, patch the release name if different
-	if releaseBinding.Spec.ReleaseName != releaseName {
-		releaseBinding.Spec.ReleaseName = releaseName
+	if releaseBinding.Spec.ComponentRelease != componentRelease {
+		releaseBinding.Spec.ComponentRelease = componentRelease
 
 		if err := r.Update(ctx, &releaseBinding); err != nil {
 			return fmt.Errorf("failed to update ReleaseBinding: %w", err)
@@ -587,12 +587,12 @@ func (r *Reconciler) ensureReleaseBinding(
 
 		logger.Info("Updated ReleaseBinding with new release",
 			"binding", bindingName,
-			"release", releaseName,
+			"release", componentRelease,
 			"environment", firstEnv)
 	} else {
 		logger.Info("ReleaseBinding already references current release",
 			"binding", bindingName,
-			"release", releaseName)
+			"release", componentRelease)
 	}
 
 	return nil

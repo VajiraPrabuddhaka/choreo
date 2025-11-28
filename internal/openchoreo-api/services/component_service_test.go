@@ -115,15 +115,15 @@ func TestListReleaseBindingsFiltering(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "app-dev"},
 					Spec: v1alpha1.ReleaseBindingSpec{
-						Environment: "dev",
-						ReleaseName: "app-v1",
+						Environment:      "dev",
+						ComponentRelease: "app-v1",
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "app-staging"},
 					Spec: v1alpha1.ReleaseBindingSpec{
-						Environment: "staging",
-						ReleaseName: "app-v1",
+						Environment:      "staging",
+						ComponentRelease: "app-v1",
 					},
 				},
 			},
@@ -136,15 +136,15 @@ func TestListReleaseBindingsFiltering(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "app-dev"},
 					Spec: v1alpha1.ReleaseBindingSpec{
-						Environment: "dev",
-						ReleaseName: "app-v1",
+						Environment:      "dev",
+						ComponentRelease: "app-v1",
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "app-staging"},
 					Spec: v1alpha1.ReleaseBindingSpec{
-						Environment: "staging",
-						ReleaseName: "app-v1",
+						Environment:      "staging",
+						ComponentRelease: "app-v1",
 					},
 				},
 			},
@@ -157,22 +157,22 @@ func TestListReleaseBindingsFiltering(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "app-dev"},
 					Spec: v1alpha1.ReleaseBindingSpec{
-						Environment: "dev",
-						ReleaseName: "app-v1",
+						Environment:      "dev",
+						ComponentRelease: "app-v1",
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "app-staging"},
 					Spec: v1alpha1.ReleaseBindingSpec{
-						Environment: "staging",
-						ReleaseName: "app-v1",
+						Environment:      "staging",
+						ComponentRelease: "app-v1",
 					},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "app-prod"},
 					Spec: v1alpha1.ReleaseBindingSpec{
-						Environment: "prod",
-						ReleaseName: "app-v1",
+						Environment:      "prod",
+						ComponentRelease: "app-v1",
 					},
 				},
 			},
@@ -185,8 +185,8 @@ func TestListReleaseBindingsFiltering(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{Name: "app-dev"},
 					Spec: v1alpha1.ReleaseBindingSpec{
-						Environment: "dev",
-						ReleaseName: "app-v1",
+						Environment:      "dev",
+						ComponentRelease: "app-v1",
 					},
 				},
 			},

@@ -768,7 +768,7 @@ func (s *ComponentService) PatchReleaseBinding(ctx context.Context, orgName, pro
 			}
 
 			if req.ReleaseName != "" {
-				binding.Spec.ReleaseName = req.ReleaseName
+				binding.Spec.ComponentRelease = req.ReleaseName
 			}
 		} else {
 			s.logger.Error("Failed to get release binding", "error", err)
@@ -898,7 +898,7 @@ func (s *ComponentService) toReleaseBindingResponse(binding *openchoreov1alpha1.
 		ProjectName:   projectName,
 		OrgName:       orgName,
 		Environment:   binding.Spec.Environment,
-		ReleaseName:   binding.Spec.ReleaseName,
+		ReleaseName:   binding.Spec.ComponentRelease,
 		CreatedAt:     binding.CreationTimestamp.Time,
 		Status:        statusNotReady,
 	}
@@ -1185,7 +1185,7 @@ func (s *ComponentService) DeployRelease(ctx context.Context, orgName, projectNa
 
 	if bindingExists {
 		s.logger.Debug("Updating existing release binding", "binding", bindingName)
-		binding.Spec.ReleaseName = req.ReleaseName
+		binding.Spec.ComponentRelease = req.ReleaseName
 		if err := s.k8sClient.Update(ctx, &binding); err != nil {
 			s.logger.Error("Failed to update release binding", "error", err)
 			return nil, fmt.Errorf("failed to update release binding: %w", err)
@@ -1206,8 +1206,8 @@ func (s *ComponentService) DeployRelease(ctx context.Context, orgName, projectNa
 					ProjectName:   projectName,
 					ComponentName: componentName,
 				},
-				Environment: lowestEnv,
-				ReleaseName: req.ReleaseName,
+				Environment:      lowestEnv,
+				ComponentRelease: req.ReleaseName,
 			},
 		}
 		if err := s.k8sClient.Create(ctx, &binding); err != nil {
@@ -2019,13 +2019,13 @@ func (s *ComponentService) createOrUpdateReleaseBinding(ctx context.Context, req
 					ProjectName:   req.ProjectName,
 					ComponentName: req.ComponentName,
 				},
-				Environment: req.TargetEnvironment,
-				ReleaseName: sourceBinding.Spec.ReleaseName,
+				Environment:      req.TargetEnvironment,
+				ComponentRelease: sourceBinding.Spec.ComponentRelease,
 			},
 		}
 	} else {
 		targetBinding = existingTargetBinding
-		targetBinding.Spec.ReleaseName = sourceBinding.Spec.ReleaseName
+		targetBinding.Spec.ComponentRelease = sourceBinding.Spec.ComponentRelease
 	}
 
 	if existingTargetBinding == nil {

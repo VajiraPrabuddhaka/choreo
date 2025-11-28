@@ -38,6 +38,11 @@ spec:
           spec:
             description: ReleaseBindingSpec defines the desired state of ReleaseBinding.
             properties:
+              componentRelease:
+                description: |-
+                  ComponentRelease is the name of the ComponentRelease to bind
+                  When ComponentSpec.AutoDeploy is enabled, this field will be handled by the controller
+                type: string
               componentTypeEnvOverrides:
                 description: |-
                   ComponentTypeEnvOverrides for ComponentType envOverrides parameters
@@ -65,11 +70,6 @@ spec:
                 - componentName
                 - projectName
                 type: object
-              releaseName:
-                description: |-
-                  ReleaseName is the name of the ComponentRelease to bind
-                  When ComponentSpec.AutoDeploy is enabled, this field will be handled by the controller
-                type: string
               traitOverrides:
                 additionalProperties:
                   type: object

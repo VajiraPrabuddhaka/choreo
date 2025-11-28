@@ -85,17 +85,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ct
 	// Fetch ComponentRelease
 	componentRelease := &openchoreov1alpha1.ComponentRelease{}
 	if err := r.Get(ctx, types.NamespacedName{
-		Name:      releaseBinding.Spec.ReleaseName,
+		Name:      releaseBinding.Spec.ComponentRelease,
 		Namespace: releaseBinding.Namespace,
 	}, componentRelease); err != nil {
 		if apierrors.IsNotFound(err) {
-			msg := fmt.Sprintf("ComponentRelease %q not found", releaseBinding.Spec.ReleaseName)
+			msg := fmt.Sprintf("ComponentRelease %q not found", releaseBinding.Spec.ComponentRelease)
 			controller.MarkFalseCondition(releaseBinding, ConditionReleaseSynced,
 				ReasonComponentReleaseNotFound, msg)
-			logger.Info(msg, "componentRelease", releaseBinding.Spec.ReleaseName)
+			logger.Info(msg, "componentRelease", releaseBinding.Spec.ComponentRelease)
 			return ctrl.Result{}, nil
 		}
-		logger.Error(err, "Failed to get ComponentRelease", "componentRelease", releaseBinding.Spec.ReleaseName)
+		logger.Error(err, "Failed to get ComponentRelease", "componentRelease", releaseBinding.Spec.ComponentRelease)
 		return ctrl.Result{}, err
 	}
 
