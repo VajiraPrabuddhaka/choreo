@@ -5,7 +5,7 @@ ARG TARGETOS
 ARG TARGETARCH
 
 LABEL org.opencontainers.image.source="https://github.com/openchoreo/openchoreo"
-LABEL org.opencontainers.image.description="OpenChoreo CLI"
+LABEL org.opencontainers.image.description="occ - OpenChoreo CLI"
 LABEL org.opencontainers.image.license="Apache-2.0"
 
 # Set working directory in the container
