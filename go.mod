@@ -4,7 +4,6 @@ go 1.24.2
 
 require (
 	github.com/casbin/casbin/v2 v2.135.0
-	github.com/envoyproxy/gateway v1.3.2
 	github.com/evanphx/json-patch/v5 v5.9.11
 	github.com/getkin/kin-openapi v0.133.0
 	github.com/glebarez/sqlite v1.7.0
@@ -41,7 +40,6 @@ require (
 	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff
 	k8s.io/utils v0.0.0-20250321185631-1f6e0b77f77e
 	sigs.k8s.io/controller-runtime v0.20.4
-	sigs.k8s.io/gateway-api v1.2.1
 	sigs.k8s.io/yaml v1.4.0
 )
 
