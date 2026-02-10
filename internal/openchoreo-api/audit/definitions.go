@@ -129,6 +129,26 @@ func GetActionDefinitions() []audit.ActionDefinition {
 			Category: audit.CategoryResource,
 		},
 
+		// Workload definition operations
+		{
+			Method:   "POST",
+			Pattern:  "/api/v1/namespaces/{namespaceName}/workloads/definition",
+			Action:   "create_workload_definition",
+			Category: audit.CategoryResource,
+		},
+		{
+			Method:   "PUT",
+			Pattern:  "/api/v1/namespaces/{namespaceName}/workloads/{workloadName}/definition",
+			Action:   "update_workload_definition",
+			Category: audit.CategoryResource,
+		},
+		{
+			Method:   "DELETE",
+			Pattern:  "/api/v1/namespaces/{namespaceName}/workloads/{workloadName}/definition",
+			Action:   "delete_workload_definition",
+			Category: audit.CategoryResource,
+		},
+
 		// Authorization role operations
 		{
 			Method:   "POST",

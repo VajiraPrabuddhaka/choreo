@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -601,6 +602,203 @@ func (h *Handler) DeleteComponentWorkflowDefinition(w http.ResponseWriter, r *ht
 	}
 
 	log.Info("ComponentWorkflow deleted", "namespace", namespaceName, "name", cwName, "operation", operation)
+	writeSuccessResponse(w, http.StatusOK, response)
+}
+
+// ========== Workload Definition Handlers ==========
+
+// CreateWorkloadDefinition handles POST /api/v1/namespaces/{namespaceName}/workloads/definition
+func (h *Handler) CreateWorkloadDefinition(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	namespaceName := r.PathValue("namespaceName")
+
+	if namespaceName == "" {
+		log.Warn("Missing required path parameter", "namespaceName", namespaceName)
+		writeErrorResponse(w, http.StatusBadRequest, "namespaceName is required", services.CodeInvalidInput)
+		return
+	}
+
+	var resourceObj map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&resourceObj); err != nil {
+		log.Error("Failed to decode request body", "error", err)
+		writeErrorResponse(w, http.StatusBadRequest, "Invalid request body", services.CodeInvalidInput)
+		return
+	}
+
+	kind, apiVersion, name, err := validateResourceRequest(resourceObj)
+	if err != nil {
+		writeErrorResponse(w, http.StatusBadRequest, err.Error(), services.CodeInvalidInput)
+		return
+	}
+
+	if kind != "Workload" {
+		writeErrorResponse(w, http.StatusBadRequest, "Kind must be Workload", services.CodeInvalidInput)
+		return
+	}
+
+	unstructuredObj := &unstructured.Unstructured{Object: resourceObj}
+	unstructuredObj.SetNamespace(namespaceName)
+
+	if err := h.handleResourceNamespace(unstructuredObj, apiVersion, kind); err != nil {
+		log.Error("Failed to handle resource namespace", "error", err)
+		writeErrorResponse(w, http.StatusBadRequest, "Failed to handle resource namespace: "+err.Error(), services.CodeInvalidInput)
+		return
+	}
+
+	if err := h.createInKubernetes(ctx, unstructuredObj); err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			log.Warn("Workload already exists", "namespace", namespaceName, "name", name)
+			writeErrorResponse(w, http.StatusConflict, "Workload already exists", services.CodeWorkloadExists)
+			return
+		}
+		log.Error("Failed to create Workload", "error", err)
+		writeErrorResponse(w, http.StatusInternalServerError, "Failed to create Workload: "+err.Error(), services.CodeInternalError)
+		return
+	}
+
+	response := ResourceCRUDResponse{
+		APIVersion: apiVersion,
+		Kind:       kind,
+		Name:       name,
+		Namespace:  namespaceName,
+		Operation:  "created",
+	}
+
+	log.Info("Workload created successfully", "namespace", namespaceName, "name", name)
+	writeSuccessResponse(w, http.StatusCreated, response)
+}
+
+// GetWorkloadDefinition handles GET /api/v1/namespaces/{namespaceName}/workloads/{workloadName}/definition
+func (h *Handler) GetWorkloadDefinition(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	namespaceName := r.PathValue("namespaceName")
+	workloadName := r.PathValue("workloadName")
+
+	if namespaceName == "" || workloadName == "" {
+		log.Warn("Missing required path parameters", "namespaceName", namespaceName, "workloadName", workloadName)
+		writeErrorResponse(w, http.StatusBadRequest, "namespaceName and workloadName are required", services.CodeInvalidInput)
+		return
+	}
+
+	gvk := openChoreoGVK("Workload")
+	obj, err := h.getResourceByGVK(ctx, gvk, namespaceName, workloadName)
+	if err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			log.Warn("Workload not found", "namespace", namespaceName, "name", workloadName)
+			writeErrorResponse(w, http.StatusNotFound, "Workload not found", services.CodeWorkloadNotFound)
+			return
+		}
+		log.Error("Failed to get Workload", "error", err)
+		writeErrorResponse(w, http.StatusInternalServerError, "Failed to get Workload", services.CodeInternalError)
+		return
+	}
+
+	log.Debug("Retrieved Workload definition", "namespace", namespaceName, "name", workloadName)
+	writeSuccessResponse(w, http.StatusOK, obj.Object)
+}
+
+// UpdateWorkloadDefinition handles PUT /api/v1/namespaces/{namespaceName}/workloads/{workloadName}/definition
+func (h *Handler) UpdateWorkloadDefinition(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	namespaceName := r.PathValue("namespaceName")
+	workloadName := r.PathValue("workloadName")
+
+	if namespaceName == "" || workloadName == "" {
+		log.Warn("Missing required path parameters", "namespaceName", namespaceName, "workloadName", workloadName)
+		writeErrorResponse(w, http.StatusBadRequest, "namespaceName and workloadName are required", services.CodeInvalidInput)
+		return
+	}
+
+	var resourceObj map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&resourceObj); err != nil {
+		log.Error("Failed to decode request body", "error", err)
+		writeErrorResponse(w, http.StatusBadRequest, "Invalid request body", services.CodeInvalidInput)
+		return
+	}
+
+	kind, apiVersion, name, err := validateResourceRequest(resourceObj)
+	if err != nil {
+		writeErrorResponse(w, http.StatusBadRequest, err.Error(), services.CodeInvalidInput)
+		return
+	}
+
+	if kind != "Workload" {
+		writeErrorResponse(w, http.StatusBadRequest, "Kind must be Workload", services.CodeInvalidInput)
+		return
+	}
+
+	if name != workloadName {
+		writeErrorResponse(w, http.StatusBadRequest, "Resource name does not match URL", services.CodeInvalidInput)
+		return
+	}
+
+	unstructuredObj := &unstructured.Unstructured{Object: resourceObj}
+	unstructuredObj.SetNamespace(namespaceName)
+
+	if err := h.handleResourceNamespace(unstructuredObj, apiVersion, kind); err != nil {
+		log.Error("Failed to handle resource namespace", "error", err)
+		writeErrorResponse(w, http.StatusBadRequest, "Failed to handle resource namespace: "+err.Error(), services.CodeInvalidInput)
+		return
+	}
+
+	operation, err := h.applyToKubernetes(ctx, unstructuredObj)
+	if err != nil {
+		log.Error("Failed to apply Workload", "error", err)
+		writeErrorResponse(w, http.StatusInternalServerError, "Failed to apply Workload: "+err.Error(), services.CodeInternalError)
+		return
+	}
+
+	response := ResourceCRUDResponse{
+		APIVersion: apiVersion,
+		Kind:       kind,
+		Name:       name,
+		Namespace:  namespaceName,
+		Operation:  operation,
+	}
+
+	log.Info("Workload applied successfully", "namespace", namespaceName, "name", workloadName, "operation", operation)
+	writeSuccessResponse(w, http.StatusOK, response)
+}
+
+// DeleteWorkloadDefinition handles DELETE /api/v1/namespaces/{namespaceName}/workloads/{workloadName}/definition
+func (h *Handler) DeleteWorkloadDefinition(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	namespaceName := r.PathValue("namespaceName")
+	workloadName := r.PathValue("workloadName")
+
+	if namespaceName == "" || workloadName == "" {
+		log.Warn("Missing required path parameters", "namespaceName", namespaceName, "workloadName", workloadName)
+		writeErrorResponse(w, http.StatusBadRequest, "namespaceName and workloadName are required", services.CodeInvalidInput)
+		return
+	}
+
+	gvk := openChoreoGVK("Workload")
+	obj := buildUnstructuredRef(gvk, namespaceName, workloadName)
+
+	operation, err := h.deleteFromKubernetes(ctx, obj)
+	if err != nil {
+		log.Error("Failed to delete Workload", "error", err)
+		writeErrorResponse(w, http.StatusInternalServerError, "Failed to delete Workload: "+err.Error(), services.CodeInternalError)
+		return
+	}
+
+	response := ResourceCRUDResponse{
+		APIVersion: gvk.GroupVersion().String(),
+		Kind:       gvk.Kind,
+		Name:       workloadName,
+		Namespace:  namespaceName,
+		Operation:  operation,
+	}
+
+	log.Info("Workload deleted", "namespace", namespaceName, "name", workloadName, "operation", operation)
 	writeSuccessResponse(w, http.StatusOK, response)
 }
 

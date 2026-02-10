@@ -34,6 +34,7 @@ var (
 	ErrComponentWorkflowNotFound    = errors.New("component workflow not found")
 	ErrComponentWorkflowRunNotFound = errors.New("component workflow run not found")
 	ErrWorkloadNotFound             = errors.New("workload not found")
+	ErrWorkloadAlreadyExists        = errors.New("workload already exists")
 	ErrComponentReleaseNotFound     = errors.New("component release not found")
 	ErrReleaseBindingNotFound       = errors.New("release binding not found")
 	ErrWorkflowSchemaInvalid        = errors.New("workflow schema is invalid")
@@ -84,6 +85,7 @@ const (
 	CodeComponentWorkflowNotFound    = "COMPONENT_WORKFLOW_NOT_FOUND"
 	CodeComponentWorkflowRunNotFound = "COMPONENT_WORKFLOW_RUN_NOT_FOUND"
 	CodeWorkloadNotFound             = "WORKLOAD_NOT_FOUND"
+	CodeWorkloadExists               = "WORKLOAD_EXISTS"
 	CodeComponentReleaseNotFound     = "COMPONENT_RELEASE_NOT_FOUND"
 	CodeReleaseBindingNotFound       = "RELEASE_BINDING_NOT_FOUND"
 	CodeReleaseNotFound              = "RELEASE_NOT_FOUND"

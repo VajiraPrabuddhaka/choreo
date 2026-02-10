@@ -160,6 +160,12 @@ func (h *Handler) Routes() http.Handler {
 	api.HandleFunc("PUT "+v1+"/namespaces/{namespaceName}/traits/{traitName}/definition", h.UpdateTraitDefinition)
 	api.HandleFunc("DELETE "+v1+"/namespaces/{namespaceName}/traits/{traitName}/definition", h.DeleteTraitDefinition)
 
+	// Workload definition endpoints
+	api.HandleFunc("POST "+v1+"/namespaces/{namespaceName}/workloads/definition", h.CreateWorkloadDefinition)
+	api.HandleFunc("GET "+v1+"/namespaces/{namespaceName}/workloads/{workloadName}/definition", h.GetWorkloadDefinition)
+	api.HandleFunc("PUT "+v1+"/namespaces/{namespaceName}/workloads/{workloadName}/definition", h.UpdateWorkloadDefinition)
+	api.HandleFunc("DELETE "+v1+"/namespaces/{namespaceName}/workloads/{workloadName}/definition", h.DeleteWorkloadDefinition)
+
 	// Project management
 	api.HandleFunc("GET "+v1+"/namespaces/{namespaceName}/projects", h.ListProjects)
 	api.HandleFunc("POST "+v1+"/namespaces/{namespaceName}/projects", h.CreateProject)

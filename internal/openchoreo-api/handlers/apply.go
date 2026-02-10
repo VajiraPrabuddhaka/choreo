@@ -116,6 +116,12 @@ func (h *Handler) applyToKubernetes(ctx context.Context, obj *unstructured.Unstr
 	return "updated", nil
 }
 
+// createInKubernetes creates the resource in Kubernetes cluster (fails if already exists)
+func (h *Handler) createInKubernetes(ctx context.Context, obj *unstructured.Unstructured) error {
+	k8sClient := h.services.GetKubernetesClient()
+	return k8sClient.Create(ctx, obj)
+}
+
 // DeleteResourceResponse represents the response for delete operations
 type DeleteResourceResponse struct {
 	APIVersion string `json:"apiVersion"`
