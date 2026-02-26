@@ -213,7 +213,8 @@ bootstrap:
               "client_id": "openchoreo-backstage-client",
               "client_secret": "backstage-portal-secret",
               "redirect_uris": [
-                "http://openchoreo.localhost:8080/api/auth/openchoreo-auth/handler/frame"
+                "http://openchoreo.localhost:8080/api/auth/openchoreo-auth/handler/frame",
+                "http://localhost:7007/api/auth/openchoreo-auth/handler/frame"
               ],
               "grant_types": [
                 "authorization_code",
