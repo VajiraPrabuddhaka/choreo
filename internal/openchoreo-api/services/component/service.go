@@ -289,8 +289,9 @@ func (s *componentService) GenerateRelease(ctx context.Context, namespaceName, c
 	}
 
 	workloadTemplateSpec := openchoreov1alpha1.WorkloadTemplateSpec{
-		Container: workload.Spec.Container,
-		Endpoints: workload.Spec.Endpoints,
+		Container:    workload.Spec.Container,
+		Endpoints:    workload.Spec.Endpoints,
+		Dependencies: workload.Spec.Dependencies,
 	}
 
 	crSpec, err := componentrelease.BuildSpec(componentrelease.BuildInput{
